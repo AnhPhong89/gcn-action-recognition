@@ -1,0 +1,70 @@
+# ============================================================
+# GCN Action Recognition - Requirements
+# Python >= 3.9
+# ============================================================
+
+# Khai báo sẵn các nguồn tải (tương đương cờ -f và --index-url trong terminal)
+--extra-index-url https://download.pytorch.org/whl/cu121
+--find-links https://data.pyg.org/whl/torch-2.1.0+cu121.html
+
+# ── Core Deep Learning ──────────────────────────────────────
+torch==2.1.0
+torchvision==0.16.0
+torchaudio==2.1.0
+
+# ── Graph Neural Networks (Tương đương 2 lệnh pip của bạn) ──
+torch-geometric
+torch-scatter
+torch-sparse
+torch-cluster
+
+# ── Numerical / Scientific ──────────────────────────────────
+numpy>=1.24.0
+scipy>=1.11.0
+pandas>=2.0.0
+
+# ── Computer Vision & Skeleton ──────────────────────────────
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+
+# ── Config Management ───────────────────────────────────────
+pyyaml>=6.0
+omegaconf>=2.3.0
+hydra-core>=1.3.2
+
+# ── API (FastAPI) ───────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+python-multipart>=0.0.9
+
+# ── Demo (Streamlit) ────────────────────────────────────────
+streamlit>=1.32.0
+
+# ── Logging & Experiment Tracking ───────────────────────────
+tensorboard>=2.15.0
+wandb>=0.16.0
+
+# ── Evaluation & Visualization ──────────────────────────────
+scikit-learn>=1.4.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# ── Model Export ────────────────────────────────────────────
+onnx>=1.15.0
+onnxruntime>=1.17.0
+
+# ── Notebooks ───────────────────────────────────────────────
+jupyter>=1.0.0
+ipykernel>=6.29.0
+ipywidgets>=8.1.0
+
+# ── Testing ─────────────────────────────────────────────────
+pytest>=8.0.0
+pytest-cov>=4.1.0
+httpx>=0.27.0          # dùng để test FastAPI (TestClient)
+
+# ── Utilities ───────────────────────────────────────────────
+tqdm>=4.66.1
+rich>=13.7.0
+einops>=0.7.0          # tensor operations dễ đọc
