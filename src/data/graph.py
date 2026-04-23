@@ -70,8 +70,31 @@ class Graph():
             neighbor_link = [(i - 1, j - 1) for (i, j) in neighbor_1base]
             self.edge = self_link + neighbor_link
             self.center = 2
-        # elif layout=='customer settings'
-        #     pass
+        elif layout == 'coco':
+            # COCO 17 keypoints (0-indexed):
+            #  0: nose,  1: left_eye,    2: right_eye,
+            #  3: left_ear, 4: right_ear,
+            #  5: left_shoulder,  6: right_shoulder,
+            #  7: left_elbow,     8: right_elbow,
+            #  9: left_wrist,    10: right_wrist,
+            # 11: left_hip,      12: right_hip,
+            # 13: left_knee,     14: right_knee,
+            # 15: left_ankle,    16: right_ankle
+            self.num_node = 17
+            self_link = [(i, i) for i in range(self.num_node)]
+            neighbor_link = [
+                (0, 1), (0, 2),      # nose ↔ eyes
+                (1, 3), (2, 4),      # eyes ↔ ears
+                (0, 5), (0, 6),      # nose ↔ shoulders
+                (5, 7), (7, 9),      # left arm
+                (6, 8), (8, 10),     # right arm
+                (5, 11), (6, 12),    # shoulders ↔ hips
+                (11, 13), (13, 15),  # left leg
+                (12, 14), (14, 16),  # right leg
+                (5, 6), (11, 12),    # shoulder span + hip span
+            ]
+            self.edge = self_link + neighbor_link
+            self.center = 0
         else:
             raise ValueError("Do Not Exist This Layout.")
 

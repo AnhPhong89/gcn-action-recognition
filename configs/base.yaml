@@ -1,0 +1,61 @@
+# ============================================================
+# GCN Action Recognition — Base Configuration
+# ============================================================
+
+# ── Data ────────────────────────────────────────────────────
+data:
+  processed_dir: data/processed
+  num_classes: 5
+  max_frames: 300
+  class_names:
+    - falling
+    - sitting
+    - standing
+    - walking
+    - walking_while_using_phone
+
+# ── Model ───────────────────────────────────────────────────
+model:
+  type: stgcn                # stgcn | stgcn_twostream
+  in_channels: 3             # x, y, confidence
+  graph_args:
+    layout: coco
+    strategy: spatial
+  edge_importance_weighting: true
+  dropout: 0
+
+# ── Training ────────────────────────────────────────────────
+training:
+  epochs: 80
+  batch_size: 16
+  learning_rate: 0.01
+  weight_decay: 0.0001
+  optimizer: sgd             # sgd | adam
+  momentum: 0.9
+  nesterov: true
+
+  loss:
+    type: cross_entropy      # cross_entropy | label_smoothing | focal
+
+  scheduler:
+    type: multistep
+    milestones: [30, 60]
+    gamma: 0.1
+
+# ── DataLoader ──────────────────────────────────────────────
+dataloader:
+  num_workers: 2
+  pin_memory: true
+  normalize: true
+  window_size: -1            # -1 = use full sequence
+
+# ── Output ──────────────────────────────────────────────────
+output:
+  dir: runs/exp
+  save_every: 10             # Save periodic checkpoint every N epochs
+
+# ── Misc ────────────────────────────────────────────────────
+seed: 42
+use_amp: false               # Automatic Mixed Precision (fp16)
+debug: false                 # Use only 100 samples for quick testing
+resume: null                 # Path to checkpoint to resume from
