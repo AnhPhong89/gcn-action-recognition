@@ -8,6 +8,7 @@ applies augmentations, and returns (data_tensor, label) pairs.
 import numpy as np
 import pickle
 import torch
+from tqdm import tqdm
 from . import transforms as tools
 
 
@@ -50,14 +51,22 @@ class SkeletonDataset(torch.utils.data.Dataset):
     def load_data(self, mmap):
         """Load data and labels from disk."""
         # load label
-        with open(self.label_path, 'rb') as f:
-            self.sample_name, self.label = pickle.load(f)
+        with tqdm(total=1, desc="  Loading labels", unit="file",
+                  bar_format="{desc}: {postfix}", leave=False) as pbar:
+            with open(self.label_path, 'rb') as f:
+                self.sample_name, self.label = pickle.load(f)
+            pbar.set_postfix_str(f"{len(self.label)} samples")
+            pbar.update(1)
 
         # load data: (N, C, T, V, M)
-        if mmap:
-            self.data = np.load(self.data_path, mmap_mode='r')
-        else:
-            self.data = np.load(self.data_path)
+        with tqdm(total=1, desc="  Loading data ", unit="file",
+                  bar_format="{desc}: {postfix}", leave=False) as pbar:
+            if mmap:
+                self.data = np.load(self.data_path, mmap_mode='r')
+            else:
+                self.data = np.load(self.data_path)
+            pbar.set_postfix_str(f"shape={self.data.shape}  mmap={mmap}")
+            pbar.update(1)
 
         if self.debug:
             self.label = self.label[0:100]
@@ -65,6 +74,10 @@ class SkeletonDataset(torch.utils.data.Dataset):
             self.sample_name = self.sample_name[0:100]
 
         self.N, self.C, self.T, self.V, self.M = self.data.shape
+        tqdm.write(
+            f"  \033[32m\033[1m\u2713\033[0m Dataset loaded  "
+            f"N={self.N}  C={self.C}  T={self.T}  V={self.V}  M={self.M}"
+        )
 
     def __len__(self):
         return len(self.label)

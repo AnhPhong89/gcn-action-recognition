@@ -8,8 +8,34 @@ import torch
 import torch.nn as nn
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 from src.utils.checkpoint import save_checkpoint
+
+# ──────────────────────────────────────────────────────────────────────────────
+# YOLO-style colour helpers (ANSI — works on most modern terminals)
+# ──────────────────────────────────────────────────────────────────────────────
+_BOLD  = "\033[1m"
+_RESET = "\033[0m"
+_GREEN = "\033[32m"
+_CYAN  = "\033[36m"
+_YELLOW = "\033[33m"
+_BLUE  = "\033[34m"
+_RED   = "\033[31m"
+
+
+def _col(text, color):
+    return f"{color}{text}{_RESET}"
+
+
+def _header_line(epoch, num_epochs, num_classes):
+    """Print the YOLO-style header row before each epoch."""
+    tag = _col(f"ST-GCN", _BOLD + _BLUE)
+    ep  = _col(f"Epoch {epoch}/{num_epochs}", _BOLD + _CYAN)
+    sep = _col("─" * 70, _YELLOW)
+    print(f"\n{sep}")
+    print(f"  {tag}  {ep}  classes={num_classes}")
+    print(_col("─" * 70, _YELLOW))
 
 
 class Trainer:
@@ -101,13 +127,32 @@ class Trainer:
 
     def fit(self):
         """Run the full training loop."""
+        # ── Startup banner ─────────────────────────────────────
+        num_classes = getattr(self.model, 'num_class',
+                              getattr(self.model, 'num_classes', '?'))
+        n_train = len(self.train_loader.dataset)
+        n_val   = len(self.val_loader.dataset)
+        banner_items = [
+            ("Device",   self.device),
+            ("Train",    f"{n_train} samples ({len(self.train_loader)} batches)"),
+            ("Val",      f"{n_val} samples ({len(self.val_loader)} batches)"),
+            ("Epochs",   self.num_epochs),
+            ("Output",   str(self.output_dir)),
+            ("AMP",      self.use_amp),
+        ]
+        print(_col("═" * 70, _BOLD + _BLUE))
+        print(_col(f"  ST-GCN Action Recognition — Training", _BOLD + _CYAN))
+        print(_col("═" * 70, _BOLD + _BLUE))
+        for k, v in banner_items:
+            print(f"  {_col(k + ':',  _YELLOW):<22} {v}")
+        print(_col("═" * 70, _BOLD + _BLUE))
         self._log(f"Starting training for {self.num_epochs} epochs on {self.device}")
-        self._log(f"Train samples: {len(self.train_loader.dataset)} | "
-                  f"Val samples: {len(self.val_loader.dataset)}")
-        self._log(f"Output dir: {self.output_dir}")
 
         for epoch in range(self.start_epoch, self.num_epochs):
             epoch_start = time.time()
+
+            # ── YOLO-style epoch header ────────────────────────
+            _header_line(epoch + 1, self.num_epochs, num_classes)
 
             # ── Train ──────────────────────────────────────────
             train_loss, train_acc = self._train_one_epoch(epoch)
@@ -126,7 +171,19 @@ class Trainer:
 
             elapsed = time.time() - epoch_start
 
-            # ── Logging ────────────────────────────────────────
+            # ── YOLO-style epoch summary row ───────────────────
+            is_best_now = val_acc > self.best_acc
+            best_marker = _col(" ★ best", _GREEN + _BOLD) if is_best_now else ""
+            print(
+                f"  {_col('Results:', _BOLD + _YELLOW)}  "
+                f"loss={_col(f'{train_loss:.4f}', _CYAN)}/"
+                f"{_col(f'{val_loss:.4f}', _CYAN)}  "
+                f"acc={_col(f'{train_acc:.1f}%', _GREEN)}/"
+                f"{_col(f'{val_acc:.1f}%', _GREEN)}  "
+                f"lr={_col(f'{current_lr:.2e}', _YELLOW)}  "
+                f"time={_col(f'{elapsed:.0f}s', _BLUE)}"
+                f"{best_marker}"
+            )
             self._log(
                 f"Epoch [{epoch+1}/{self.num_epochs}] "
                 f"train_loss={train_loss:.4f} train_acc={train_acc:.2f}% | "
@@ -147,6 +204,7 @@ class Trainer:
             if is_best:
                 self.best_acc = val_acc
                 self._log(f"  ★ New best val accuracy: {self.best_acc:.2f}%")
+                print(_col(f"  ★ New best val accuracy: {self.best_acc:.2f}%", _GREEN + _BOLD))
 
             state = {
                 'epoch': epoch + 1,
@@ -180,6 +238,9 @@ class Trainer:
 
         self.writer.close()
         self._log(f"Training complete. Best val accuracy: {self.best_acc:.2f}%")
+        print(_col("═" * 70, _BOLD + _GREEN))
+        print(_col(f"  Training complete! Best val accuracy: {self.best_acc:.2f}%", _BOLD + _GREEN))
+        print(_col("═" * 70, _BOLD + _GREEN))
         return self.best_acc
 
     def _train_one_epoch(self, epoch: int):
@@ -193,7 +254,23 @@ class Trainer:
         correct = 0
         total = 0
 
-        for batch_idx, (data, label) in enumerate(self.train_loader):
+        pbar = tqdm(
+            self.train_loader,
+            desc=_col("  train", _BOLD + _CYAN),
+            ncols=100,
+            unit="batch",
+            colour="cyan",
+            dynamic_ncols=True,
+            bar_format=(
+                "{desc}: {percentage:3.0f}%|{bar}| "
+                "{n_fmt}/{total_fmt} "
+                "[{elapsed}<{remaining}, {rate_fmt}] "
+                "{postfix}"
+            ),
+            leave=False,
+        )
+
+        for batch_idx, (data, label) in enumerate(pbar):
             data = data.float().to(self.device)
             label = label.long().to(self.device)
 
@@ -217,6 +294,16 @@ class Trainer:
             total += label.size(0)
             correct += predicted.eq(label).sum().item()
 
+            # Live metrics on the progress bar
+            avg_loss_so_far = total_loss / total
+            acc_so_far = 100.0 * correct / total
+            pbar.set_postfix(
+                loss=f"{avg_loss_so_far:.4f}",
+                acc=f"{acc_so_far:.1f}%",
+                refresh=False,
+            )
+
+        pbar.close()
         avg_loss = total_loss / total if total > 0 else 0
         accuracy = 100.0 * correct / total if total > 0 else 0
         return avg_loss, accuracy
@@ -233,7 +320,23 @@ class Trainer:
         correct = 0
         total = 0
 
-        for data, label in self.val_loader:
+        pbar = tqdm(
+            self.val_loader,
+            desc=_col("  val  ", _BOLD + _GREEN),
+            ncols=100,
+            unit="batch",
+            colour="green",
+            dynamic_ncols=True,
+            bar_format=(
+                "{desc}: {percentage:3.0f}%|{bar}| "
+                "{n_fmt}/{total_fmt} "
+                "[{elapsed}<{remaining}, {rate_fmt}] "
+                "{postfix}"
+            ),
+            leave=False,
+        )
+
+        for data, label in pbar:
             data = data.float().to(self.device)
             label = label.long().to(self.device)
 
@@ -250,6 +353,15 @@ class Trainer:
             total += label.size(0)
             correct += predicted.eq(label).sum().item()
 
+            avg_loss_so_far = total_loss / total
+            acc_so_far = 100.0 * correct / total
+            pbar.set_postfix(
+                loss=f"{avg_loss_so_far:.4f}",
+                acc=f"{acc_so_far:.1f}%",
+                refresh=False,
+            )
+
+        pbar.close()
         avg_loss = total_loss / total if total > 0 else 0
         accuracy = 100.0 * correct / total if total > 0 else 0
         return avg_loss, accuracy
