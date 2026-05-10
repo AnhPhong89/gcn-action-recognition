@@ -175,7 +175,7 @@ data/splits/*
 *.pt
 *.pth
 *.onnx
-models/
+/models/
 checkpoints/
 runs/
 
