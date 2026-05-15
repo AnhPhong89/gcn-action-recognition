@@ -6,11 +6,13 @@ import csv
 import time
 import torch
 import torch.nn as nn
+import numpy as np
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from src.utils.checkpoint import save_checkpoint
+from src.utils.visualize import visualize_batch
 
 # ──────────────────────────────────────────────────────────────────────────────
 # YOLO-style colour helpers (ANSI — works on most modern terminals)
@@ -68,7 +70,9 @@ class Trainer:
                  logger=None,
                  num_epochs: int = 80,
                  save_every: int = 10,
-                 use_amp: bool = False):
+                 use_amp: bool = False,
+                 vis_every: int = 10,
+                 class_names: list | None = None):
 
         self.model = model.to(device)
         self.train_loader = train_loader
@@ -84,6 +88,10 @@ class Trainer:
         # Mixed precision
         self.use_amp = use_amp and device != 'cpu'
         self.scaler = torch.amp.GradScaler('cuda') if self.use_amp else None
+
+        # Visualisation
+        self.vis_every   = vis_every
+        self.class_names = class_names or []
 
         # Output
         self.output_dir = Path(output_dir)
@@ -147,6 +155,9 @@ class Trainer:
             print(f"  {_col(k + ':',  _YELLOW):<22} {v}")
         print(_col("═" * 70, _BOLD + _BLUE))
         self._log(f"Starting training for {self.num_epochs} epochs on {self.device}")
+
+        # ── Epoch-0 data sanity visualisation (no predictions) ────────
+        self._visualize_samples(epoch=0)
 
         for epoch in range(self.start_epoch, self.num_epochs):
             epoch_start = time.time()
@@ -235,6 +246,11 @@ class Trainer:
                 'time_sec': elapsed,
                 'is_best': is_best,
             })
+
+            # ── Periodic visualisation with model predictions ─────────
+            vis_epoch = epoch + 1  # 1-indexed for display
+            if self.vis_every > 0 and vis_epoch % self.vis_every == 0:
+                self._visualize_samples(epoch=vis_epoch, with_predictions=True)
 
         self.writer.close()
         self._log(f"Training complete. Best val accuracy: {self.best_acc:.2f}%")
@@ -365,6 +381,80 @@ class Trainer:
         avg_loss = total_loss / total if total > 0 else 0
         accuracy = 100.0 * correct / total if total > 0 else 0
         return avg_loss, accuracy
+
+    # ──────────────────────────────────────────────────────────────────
+    # Visualisation helpers
+    # ──────────────────────────────────────────────────────────────────
+
+    @torch.no_grad()
+    def _visualize_samples(
+        self,
+        epoch: int,
+        n_samples: int = 16,
+        n_cols: int = 4,
+        with_predictions: bool = False,
+    ):
+        """Render a grid of skeleton samples and log to disk + TensorBoard.
+
+        At epoch 0, only ground-truth labels are shown (data sanity check).
+        When `with_predictions=True` the model is run in eval mode and
+        predicted labels + confidence are overlaid on each cell.
+
+        Args:
+            epoch:            Epoch number used in filenames.
+            n_samples:        Max samples to visualise per split.
+            n_cols:           Grid column count.
+            with_predictions: Whether to run the model for prediction overlay.
+        """
+        vis_dir = self.output_dir / 'samples'
+        tag     = "epoch 0 — data check" if epoch == 0 else f"epoch {epoch}"
+        print(_col(f"\n  [vis] Generating sample visualisation ({tag}) …", _CYAN))
+
+        for split, loader in [("train", self.train_loader), ("val", self.val_loader)]:
+            # Grab one batch
+            data_batch, label_batch = next(iter(loader))
+            data_np  = data_batch.numpy()                    # (N, C, T, V, M)
+            label_np = label_batch.numpy()                   # (N,)
+
+            pred_labels = pred_probs = None
+            if with_predictions and len(self.class_names) > 0:
+                self.model.eval()
+                logits = self.model(data_batch.float().to(self.device))  # (N, K)
+                probs  = torch.softmax(logits, dim=1).cpu().numpy()      # (N, K)
+                pred_labels = probs.argmax(axis=1)                        # (N,)
+                pred_probs  = probs.max(axis=1)                           # (N,)
+
+            save_path = visualize_batch(
+                data       = data_np,
+                labels     = label_np,
+                class_names= self.class_names,
+                out_path   = vis_dir,
+                n_samples  = n_samples,
+                n_cols     = n_cols,
+                epoch      = epoch,
+                split      = split,
+                pred_labels= pred_labels,
+                pred_probs = pred_probs,
+            )
+
+            # ── Log to TensorBoard (Images tab) ───────────────────────
+            try:
+                import cv2
+                img_bgr = cv2.imread(str(save_path))
+                if img_bgr is not None:
+                    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+                    # TensorBoard expects (C, H, W) in range [0, 1]
+                    img_t   = torch.from_numpy(img_rgb).permute(2, 0, 1).float() / 255.0
+                    tb_tag  = f"samples/{split}"
+                    self.writer.add_image(tb_tag, img_t, global_step=epoch)
+                    self.writer.flush()
+            except Exception as e:
+                self._log(f"[vis] TensorBoard image log failed: {e}")
+
+            marker = _col("✓", _GREEN + _BOLD)
+            print(f"  {marker} {_col(split, _BOLD)} → {_col(str(save_path), _CYAN)}")
+
+        print()
 
     def resume(self, checkpoint_path: str):
         """Resume training from a checkpoint.

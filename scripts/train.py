@@ -106,6 +106,8 @@ def main():
                         help='Quick run with 100 samples')
     parser.add_argument('--resume', type=str, default=None,
                         help='Path to checkpoint to resume from')
+    parser.add_argument('--vis-every', type=int, default=None,
+                        help='Visualise samples every N epochs (overrides config)')
     args = parser.parse_args()
 
     # ── Config ─────────────────────────────────────────────────
@@ -116,6 +118,8 @@ def main():
         cfg['debug'] = True
     if args.resume:
         cfg['resume'] = args.resume
+    if args.vis_every is not None:
+        cfg.setdefault('output', {})['vis_every'] = args.vis_every
 
     debug = cfg.get('debug', False)
     seed = cfg.get('seed', 42)
@@ -180,6 +184,8 @@ def main():
         num_epochs=train_cfg['epochs'],
         save_every=cfg['output'].get('save_every', 10),
         use_amp=cfg.get('use_amp', False),
+        vis_every=cfg['output'].get('vis_every', 10),
+        class_names=cfg['data'].get('class_names', []),
     )
 
     # ── Resume ─────────────────────────────────────────────────
