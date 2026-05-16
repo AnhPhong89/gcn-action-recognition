@@ -33,6 +33,20 @@ COCO_EDGES = [
 ]
 
 # ---------------------------------------------------------------------------
+# OpenPose-18 skeleton edges
+# ---------------------------------------------------------------------------
+OPENPOSE_EDGES = [
+    (0, 14), (0, 15),      # nose ↔ eyes
+    (14, 16), (15, 17),    # eyes ↔ ears
+    (0, 1),                # nose ↔ neck
+    (1, 2), (2, 3), (3, 4),# right arm
+    (1, 5), (5, 6), (6, 7),# left arm
+    (1, 8), (8, 9), (9, 10),# right leg
+    (1, 11), (11, 12), (12, 13),# left leg
+    (2, 5), (8, 11),       # shoulder span + hip span
+]
+
+# ---------------------------------------------------------------------------
 # Colour palette — one colour per class (RGB 0-255)
 # Matches infer.py _PALETTE (converted from BGR to RGB)
 # ---------------------------------------------------------------------------
@@ -112,7 +126,8 @@ def _draw_skeleton_trail(
         pts  = [to_pixel(kpts[0, v], kpts[1, v]) for v in range(V)]
 
         # Draw edges
-        for i, j in COCO_EDGES:
+        edges = OPENPOSE_EDGES if V == 18 else COCO_EDGES
+        for i, j in edges:
             x1, y1 = pts[i]
             x2, y2 = pts[j]
             # Skip if either endpoint is at origin (missing keypoint)

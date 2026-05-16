@@ -80,6 +80,17 @@ COCO_EDGES = [
     (12, 14), (14, 16),           # right leg
 ]
 
+OPENPOSE_EDGES = [
+    (0, 14), (0, 15),      # nose ↔ eyes
+    (14, 16), (15, 17),    # eyes ↔ ears
+    (0, 1),                # nose ↔ neck
+    (1, 2), (2, 3), (3, 4),# right arm
+    (1, 5), (5, 6), (6, 7),# left arm
+    (1, 8), (8, 9), (9, 10),# right leg
+    (1, 11), (11, 12), (12, 13),# left leg
+    (2, 5), (8, 11),       # shoulder span + hip span
+]
+
 # Colour palette for different action classes (BGR)
 _PALETTE = [
     (0,   200, 255),   # 0 – falling    orange-ish
@@ -108,6 +119,8 @@ def parse_args():
                         "Defaults to runs/exp/checkpoints/best.pt")
     p.add_argument("--config",     type=str,   default="configs/base.yaml",
                    help="Path to YAML config (default: configs/base.yaml)")
+    p.add_argument("--yolo",       type=str,   default="yolo11m-pose.pt",
+                   help="Path to YOLO pose model")
     p.add_argument("--window",     type=int,   default=None,
                    help="Sliding-window size in frames (overrides config max_frames)")
     p.add_argument("--stride",     type=int,   default=1,
@@ -170,15 +183,18 @@ def load_model(checkpoint_path: str, cfg: dict, device: str) -> torch.nn.Module:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _draw_skeleton(frame: np.ndarray, keypoints: np.ndarray, color, alpha=0.85):
-    """Draw COCO-17 skeleton on frame in-place.
+    """Draw skeleton on frame in-place.
 
     Args:
-        keypoints: (17, 3) array — (x, y, conf).
+        keypoints: (V, 3) array — (x, y, conf).
         color:     (B, G, R) tuple.
     """
     h, w = frame.shape[:2]
+    V = len(keypoints)
+    edges = OPENPOSE_EDGES if V == 18 else COCO_EDGES
+    
     # Draw edges
-    for i, j in COCO_EDGES:
+    for i, j in edges:
         x1, y1, c1 = keypoints[i]
         x2, y2, c2 = keypoints[j]
         if c1 < 0.1 or c2 < 0.1:
@@ -187,7 +203,7 @@ def _draw_skeleton(frame: np.ndarray, keypoints: np.ndarray, color, alpha=0.85):
         pt2 = (int(x2), int(y2))
         cv2.line(frame, pt1, pt2, color, 2, cv2.LINE_AA)
     # Draw keypoints
-    for i in range(NUM_KEYPOINTS):
+    for i in range(V):
         x, y, c = keypoints[i]
         if c < 0.1:
             continue
@@ -321,9 +337,10 @@ def run(args):
     total_params = sum(p.numel() for p in model.parameters())
     print(_col(f"  ST-GCN ready  ({total_params:,} params)", _G + _B))
 
-    print(_col("  Loading YOLOv11n-pose …", _C))
-    extractor = SkeletonExtractor(conf_threshold=args.conf, device=device)
-    print(_col("  YOLOv11n-pose ready", _G + _B))
+    print(_col(f"  Loading {args.yolo} …", _C))
+    layout = cfg.get("model", {}).get("graph_args", {}).get("layout", "openpose")
+    extractor = SkeletonExtractor(model_path=args.yolo, conf_threshold=args.conf, device=device, layout=layout)
+    print(_col(f"  {args.yolo} ready", _G + _B))
 
     # ── Predictor ─────────────────────────────────────────────────────────
     predictor = SlidingWindowPredictor(
@@ -387,6 +404,9 @@ def run(args):
                 verbose=False,
             )
             keypoints = extractor._pick_best_person(results[0])  # (17, 3)
+            
+            if extractor.layout == 'openpose':
+                keypoints = SkeletonExtractor._convert_frame_to_openpose(keypoints)
 
             # ── Predictor ────────────────────────────────────────────────
             result = predictor.push_frame(keypoints)

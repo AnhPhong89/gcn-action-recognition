@@ -5,21 +5,20 @@
 # ── Data ────────────────────────────────────────────────────
 data:
   processed_dir: data/processed
-  num_classes: 5
-  max_frames: 300
+  num_classes: 3
+  max_frames: 50
   class_names:
-    - falling
-    - sitting
-    - standing
-    - walking
-    - walking_while_using_phone
+    - Fall Down
+    - Lying Down
+    - Walking
+
 
 # ── Model ───────────────────────────────────────────────────
 model:
-  type: stgcn_twostream              # stgcn | stgcn_twostream
+  type: stgcn   # stgcn | stgcn_twostream
   in_channels: 3             # x, y, confidence
   graph_args:
-    layout: coco
+    layout: openpose
     strategy: spatial
   edge_importance_weighting: true
   dropout: 0
@@ -27,7 +26,7 @@ model:
 # ── Training ────────────────────────────────────────────────
 training:
   epochs: 80
-  batch_size: 16
+  batch_size: 32
   learning_rate: 0.01
   weight_decay: 0.0001
   optimizer: sgd             # sgd | adam

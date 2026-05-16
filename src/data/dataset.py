@@ -126,13 +126,24 @@ class SkeletonDataset(torch.utils.data.Dataset):
 
         # Only normalize x (ch0) and y (ch1), leave confidence (ch2) intact
         for m in range(M):
-            # Hip center: midpoint of left_hip(11) and right_hip(12)
-            hip_center_x = (result[0, :, 11, m] + result[0, :, 12, m]) / 2.0
-            hip_center_y = (result[1, :, 11, m] + result[1, :, 12, m]) / 2.0
+            if V == 17: # COCO
+                l_hip, r_hip = 11, 12
+                l_shoulder, r_shoulder = 5, 6
+            elif V == 18: # OpenPose
+                l_hip, r_hip = 11, 8
+                l_shoulder, r_shoulder = 5, 2
+            else:
+                # Default fallback (might not be correct for other layouts)
+                l_hip, r_hip = 11, 12
+                l_shoulder, r_shoulder = 5, 6
 
-            # Shoulder center: midpoint of left_shoulder(5) and right_shoulder(6)
-            shoulder_center_x = (result[0, :, 5, m] + result[0, :, 6, m]) / 2.0
-            shoulder_center_y = (result[1, :, 5, m] + result[1, :, 6, m]) / 2.0
+            # Hip center
+            hip_center_x = (result[0, :, l_hip, m] + result[0, :, r_hip, m]) / 2.0
+            hip_center_y = (result[1, :, l_hip, m] + result[1, :, r_hip, m]) / 2.0
+
+            # Shoulder center
+            shoulder_center_x = (result[0, :, l_shoulder, m] + result[0, :, r_shoulder, m]) / 2.0
+            shoulder_center_y = (result[1, :, l_shoulder, m] + result[1, :, r_shoulder, m]) / 2.0
 
             # Torso length per frame (shoulder_center → hip_center)
             torso_len = np.sqrt(

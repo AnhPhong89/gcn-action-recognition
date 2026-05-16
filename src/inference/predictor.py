@@ -43,10 +43,20 @@ def _normalize_clip(data: np.ndarray) -> np.ndarray:
     C, T, V, M = data.shape
     result = data.copy()
     for m in range(M):
-        hip_x = (result[0, :, 11, m] + result[0, :, 12, m]) / 2.0
-        hip_y = (result[1, :, 11, m] + result[1, :, 12, m]) / 2.0
-        s_x   = (result[0, :, 5,  m] + result[0, :, 6,  m]) / 2.0
-        s_y   = (result[1, :, 5,  m] + result[1, :, 6,  m]) / 2.0
+        if V == 17: # COCO
+            l_hip, r_hip = 11, 12
+            l_shoulder, r_shoulder = 5, 6
+        elif V == 18: # OpenPose
+            l_hip, r_hip = 11, 8
+            l_shoulder, r_shoulder = 5, 2
+        else:
+            l_hip, r_hip = 11, 12
+            l_shoulder, r_shoulder = 5, 6
+            
+        hip_x = (result[0, :, l_hip, m] + result[0, :, r_hip, m]) / 2.0
+        hip_y = (result[1, :, l_hip, m] + result[1, :, r_hip, m]) / 2.0
+        s_x   = (result[0, :, l_shoulder,  m] + result[0, :, r_shoulder,  m]) / 2.0
+        s_y   = (result[1, :, l_shoulder,  m] + result[1, :, r_shoulder,  m]) / 2.0
         torso = np.sqrt((s_x - hip_x) ** 2 + (s_y - hip_y) ** 2)
         valid = torso[torso > 1e-4]
         scale = valid.mean() if len(valid) > 0 else 1.0
