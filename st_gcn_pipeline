@@ -1,0 +1,24 @@
+// Sơ đồ luồng ST-GCN
+digraph "ST-GCN Flow" {
+	rankdir=TB size="8,8"
+	node [fontname=Arial fontsize=12]
+	Input [label="Dữ liệu đầu vào
+(Chuỗi khung xương)
+Shape: (N, C, T, V, M)" fillcolor=lightblue shape=box style=filled]
+	Norm [label="Chuẩn hóa dữ liệu
+(BatchNorm1d)" shape=ellipse]
+	Model [label="Mô hình ST-GCN
+(Bao gồm 10 khối ST-GCN Blocks)" fillcolor=lightyellow shape=box style=filled]
+	Pool [label="Gộp đặc trưng
+(Average Pooling 2D)" shape=ellipse]
+	Classify [label="Lớp Phân loại
+(Conv2D - Classifier)" shape=ellipse]
+	Output [label="Kết quả dự đoán
+(Nhãn hành động)
+Shape: (N, num_class)" fillcolor=lightgreen shape=box style=filled]
+	Input -> Norm
+	Norm -> Model
+	Model -> Pool
+	Pool -> Classify
+	Classify -> Output
+}
