@@ -92,7 +92,7 @@ class SlidingWindowPredictor:
                         treated as zero-padded.
     """
 
-    NUM_KEYPOINTS: int = 17
+    NUM_KEYPOINTS: int = 18  # OpenPose-18 (model trained with this layout)
     NUM_CHANNELS:  int = 3   # x, y, conf
     NUM_PERSONS:   int = 1
 
@@ -143,9 +143,11 @@ class SlidingWindowPredictor:
         """Feed one frame of keypoints and return the current prediction.
 
         Args:
-            keypoints: (V=17, 3) array — (x, y, conf) per keypoint in
-                       **pixel coordinates** (same as YOLO output).
-                       Pass ``np.zeros((17, 3))`` if no person was detected.
+            keypoints: (V=18, 3) array — (x, y, conf) per keypoint in
+                       **pixel coordinates** (OpenPose-18 format).
+                       Pass ``np.zeros((18, 3))`` if no person was detected.
+                       Note: YOLO COCO-17 output is converted by the API route
+                       (coco17_to_openpose18) before reaching this method.
 
         Returns:
             dict with keys:
