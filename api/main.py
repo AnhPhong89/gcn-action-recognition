@@ -26,7 +26,7 @@ from src.inference import SlidingWindowPredictor
 from src.utils.checkpoint import load_checkpoint
 from api.state import app_state
 from api.routes import health, predict as predict_router
-
+from api.routes import websocket_stream
 
 # ── Config mặc định (có thể override qua env var) ──────────────────────────
 CONFIG_PATH   = ROOT / "configs" / "base.yaml"
@@ -103,6 +103,7 @@ app.add_middleware(
 
 app.include_router(health.router, tags=["health"])
 app.include_router(predict_router.router, tags=["predict"])
+app.include_router(websocket_stream.router, tags=["websocket"])
 
 
 @app.get("/", include_in_schema=False)
